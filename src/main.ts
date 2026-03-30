@@ -36,6 +36,7 @@ interface PlacedMedia {
   y: number;
   width: number;
   height: number;
+  phase: number; // For independent float animation
   type: 'image';
 }
 
@@ -43,6 +44,7 @@ interface ComputedLine {
   text: string;
   x: number;
   y: number;
+  isTitle?: boolean;
 }
 
 let loadedMedia: PlacedMedia[] = [];
@@ -51,6 +53,23 @@ let computedLines: ComputedLine[] = [];
 let layoutWidth = window.innerWidth;
 let screenWidth = window.innerWidth;
 let finalHeight = window.innerHeight;
+
+let mousePos = { x: 0, y: 0 };
+let deviceTilt = { x: 0, y: 0 };
+const startTime = Date.now();
+
+window.addEventListener('mousemove', (e) => {
+    mousePos.x = (e.clientX / window.innerWidth) - 0.5;
+    mousePos.y = (e.clientY / window.innerHeight) - 0.5;
+});
+
+window.addEventListener('deviceorientation', (e) => {
+    if (e.beta !== null && e.gamma !== null) {
+        // Simple mapping of tilt to a -0.5 to 0.5 range
+        deviceTilt.x = Math.max(-1, Math.min(1, e.gamma / 45)) * 0.5;
+        deviceTilt.y = Math.max(-1, Math.min(1, (e.beta - 45) / 45)) * 0.5;
+    }
+});
 
 async function loadMedia() {
   for (const src of mediaToLoad) {
@@ -68,6 +87,7 @@ async function loadMedia() {
             y: 0, // Calculated later
             width,
             height,
+            phase: Math.random() * Math.PI * 2,
             type: 'image'
         });
         resolve(null);
@@ -81,9 +101,8 @@ async function loadMedia() {
   }
 }
 
-const bdayText = `Happy Birthday Parul! 
-
-Wishing you the most magical, warm, and incredible birthday ever. 
+const titleText = "Happy Birthday Parul!";
+const bodyText = `Wishing you the most magical, warm, and incredible birthday ever. 
 
 May your day be filled with endless purrs, warm candle light, and all the joy that you absolutely deserve!
 
@@ -101,10 +120,12 @@ With lots of love,
 Your Friends`;
 
 function calculateLayout() {
-  const font = '32px "Josefin Sans", sans-serif';
-  const prepared = prepareWithSegments(bdayText, font, { whiteSpace: 'pre-wrap' });
-  const lineHeight = 44;
+  const bodyFont = '24px "Josefin Sans", sans-serif';
+  
+  const prepared = prepareWithSegments(bodyText, bodyFont, { whiteSpace: 'pre-wrap' });
+  const lineHeight = 34;
   const colPadding = 40;
+  const titleHeight = 80;
   
   // 1. Simulate finding the raw text height
   let simCursor = { segmentIndex: 0, graphemeIndex: 0 };
@@ -141,6 +162,10 @@ function calculateLayout() {
       
       media.x = x;
       media.y = currentImgY + (Math.random() * 80 - 40); // add slight jitter
+      // Avoid covering the title area if in column 1
+      if (media.x < layoutWidth / 2 && media.y < 180) {
+          media.y += 150;
+      }
       currentImgY += stepY;
   });
 
@@ -149,6 +174,16 @@ function calculateLayout() {
   let currentColumn = 1;
   let cursor = { segmentIndex: 0, graphemeIndex: 0 };
   computedLines = [];
+
+  // Manual placement of the title
+  const marginX0 = Math.max(0, (screenWidth - layoutWidth) / 2);
+  computedLines.push({
+      text: titleText,
+      x: colPadding + marginX0,
+      y: currentY,
+      isTitle: true
+  });
+  currentY += titleHeight;
 
   while (true) {
     if (currentY > columnHeight && currentColumn === 1) {
@@ -233,26 +268,52 @@ function renderFrame() {
   const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
 
   // Draw media in Full Color
+  const time = (Date.now() - startTime) / 1000;
+  
+  // Combine mouse and tilt positions (barely noticeable parallax)
+  const tiltX = (mousePos.x + deviceTilt.x) * 15;
+  const tiltY = (mousePos.y + deviceTilt.y) * 15;
+
   loadedMedia.forEach((media) => {
     ctx.globalAlpha = 0.9;
     ctx.shadowColor = 'rgba(255, 180, 100, 0.4)';
     ctx.shadowBlur = 30;
     
-    ctx.drawImage(media.elem, media.x + marginX, media.y, media.width, media.height);
+    // Independent floating motion
+    const floatY = Math.sin(time + media.phase) * 8;
+    const floatX = Math.cos(time * 0.7 + media.phase) * 4;
+    
+    ctx.drawImage(
+        media.elem, 
+        media.x + marginX + tiltX + floatX, 
+        media.y + tiltY + floatY, 
+        media.width, 
+        media.height
+    );
     
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1.0;
   });
 
   // Draw two-column text lines
-  ctx.font = '32px "Josefin Sans", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-  ctx.shadowBlur = 10;
   ctx.textBaseline = 'top';
+  computedLines.forEach(line => {
+    // Parallax for text is even more subtle
+    const textTiltX = tiltX * 0.3;
+    const textTiltY = tiltY * 0.3;
 
-  console.log("Lines generated:", computedLines.length); computedLines.forEach(line => {
-    ctx.fillText(line.text, line.x, line.y);
+    if (line.isTitle) {
+      ctx.font = 'bold 52px "Satisfy", cursive';
+      ctx.fillStyle = '#FFD700'; // Gold Color
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+    } else {
+      ctx.font = '24px "Josefin Sans", sans-serif';
+      ctx.fillStyle = '#fdfbf0'; // Off-White/Cream
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    }
+    ctx.fillText(line.text, line.x + textTiltX, line.y + textTiltY);
   });
 
   // Loop
