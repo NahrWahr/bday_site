@@ -3,26 +3,39 @@ import { prepareWithSegments, layoutNextLine } from '@chenglou/pretext'
 
 const canvas = document.getElementById('bday-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+document.getElementById('bkgnd')!.style.backgroundImage = "url('./bk_gnd.webp')";
 
 const mediaToLoad = [
-  './G_cp_bXXQAAbrbE.png',
-  './sam_1576511580074226.mp4',
-  './ou5.png',
-  './oug1.png',
-  './out2.png',
-  './DailyMantle - does this to you [2015880508203278336].mp4',
-  './out4.png',
-  './out6.png',
-  './sam_1943909497002344.png'
+  './11d1e9dc-3305-49bb-90ba-5b6877c00e1e_removalai_preview.webp',
+  './G-YH3_zaYAAt5eC.webp',
+  './G0qzlfeWwAAvOKi.webp',
+  './G8ul1Y4bQAA77Vw.webp',
+  './HEibW_1WQAA2hzF.webp',
+  './IMG_20250131_123257_DRO.webp',
+  './PXL_20240109_115959709-EDIT.webp',
+  './PXL_20241031_130435595.PORTRAIT.webp',
+  './amitabh_confused.webp',
+  './ebbe6014-da48-4518-b9d5-3357c578aa02_removalai_preview.webp',
+  './image.webp',
+  './ou5.webp',
+  './oug1.webp',
+  './out2.webp',
+  './out4.webp',
+  './out6.webp',
+  './out7.webp',
+  './sallubhai.webp',
+  './sallubhai2.webp',
+  './supermeme_18h46_12.webp',
+  './supermeme_18h47_27.webp'
 ];
 
 interface PlacedMedia {
-  elem: HTMLImageElement | HTMLVideoElement;
+  elem: HTMLImageElement;
   x: number;
   y: number;
   width: number;
   height: number;
-  type: 'image' | 'video';
+  type: 'image';
 }
 
 interface ComputedLine {
@@ -34,93 +47,35 @@ interface ComputedLine {
 let loadedMedia: PlacedMedia[] = [];
 let computedLines: ComputedLine[] = [];
 
-let layoutWidth = window.innerWidth > 900 ? 900 : window.innerWidth;
+let layoutWidth = window.innerWidth;
 let screenWidth = window.innerWidth;
 let finalHeight = window.innerHeight;
 
-let mouseX = -100;
-let mouseY = -100;
-
-window.addEventListener('mousemove', (e) => {
-  mouseX = e.clientX;
-  mouseY = e.clientY + window.scrollY; // Correct absolute canvas Y position
-});
-
-interface TrailParticle {
-  x: number;
-  y: number;
-  life: number;
-  maxLife: number;
-  radius: number;
-  color: string;
-}
-
-const trail: TrailParticle[] = [];
-
 async function loadMedia() {
-  let initialY = 200;
   for (const src of mediaToLoad) {
     await new Promise((resolve) => {
-      let isVideo = src.endsWith('.mp4');
-      
-      const onReady = (elem: HTMLImageElement | HTMLVideoElement, originalWidth: number, originalHeight: number) => {
-        const maxImgWidth = Math.min(layoutWidth * 0.4, 300);
-        const scale = maxImgWidth / originalWidth;
-        const width = originalWidth * scale;
-        const height = originalHeight * scale;
-
-        const side = Math.random() > 0.5 ? 'left' : 'right';
-        const padding = 20;
-        
-        let x = side === 'left' ? padding : layoutWidth - width - padding;
-        const y = initialY + Math.random() * 200;
+      const img = new Image();
+      img.onload = () => {
+        const maxImgWidth = Math.min(layoutWidth * 0.4, 350);
+        const scale = maxImgWidth / img.width;
+        const width = img.width * scale;
+        const height = img.height * scale;
 
         loadedMedia.push({
-            elem,
-            x,
-            y,
+            elem: img,
+            x: 0, // Calculated later
+            y: 0, // Calculated later
             width,
             height,
-            type: isVideo ? 'video' : 'image'
+            type: 'image'
         });
-
-        initialY += height + 50;
         resolve(null);
       };
-
-      if (isVideo) {
-        const vid = document.createElement('video');
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.autoplay = true;
-        
-        let handled = false;
-        const handleReady = () => {
-          if (handled) return;
-          if (vid.videoWidth && vid.videoHeight) {
-            handled = true;
-            onReady(vid, vid.videoWidth, vid.videoHeight);
-            vid.play().catch(e => console.error("Auto-play prevented", e));
-          }
-        };
-
-        vid.onloadeddata = handleReady;
-        vid.oncanplay = handleReady;
-        vid.onerror = (e) => {
-          if (handled) return;
-          handled = true;
-          console.error("Video failed", src, e);
-          resolve(null);
-        };
-        vid.src = src;
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          onReady(img, img.width, img.height);
-        };
-        img.src = src;
+      
+      img.onerror = () => {
+        resolve(null); // gracefully skip broken images
       }
+      img.src = src;
     });
   }
 }
@@ -145,46 +100,103 @@ With lots of love,
 Your Friends`;
 
 function calculateLayout() {
-  const font = '32px "Cormorant Garamond", serif';
+  const font = '32px "Josefin Sans", sans-serif';
   const prepared = prepareWithSegments(bdayText, font, { whiteSpace: 'pre-wrap' });
   const lineHeight = 44;
   const colPadding = 40;
+  
+  // 1. Simulate finding the raw text height
+  let simCursor = { segmentIndex: 0, graphemeIndex: 0 };
+  let simLines = 0;
+  let singleColWidth = (layoutWidth / 2) - colPadding - 20; 
+  while (true) {
+     const line = layoutNextLine(prepared, simCursor, singleColWidth);
+     if (!line) break;
+     simCursor = line.end;
+     simLines++;
+  }
+  
+  // Target column height balances the text evenly between two columns, 
+  // plus extra buffer for image dodging.
+  const estimatedTextHeight = simLines * lineHeight;
+  const columnHeight = Math.max((estimatedTextHeight / 2) * 1.6, window.innerHeight - 100);
 
-  let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+  // 2. Position the loaded images freely down the page
+  let currentImgY = 100;
+  let stepY = 220; // Fixed spacing so they tile beautifully downwards
+  
+  loadedMedia.forEach(media => {
+      const padding = 20;
+      const posChoice = Math.random();
+      let x;
+      // Distribute to Left Edge, Right Edge, or Center Gap
+      if (posChoice < 0.33) {
+         x = padding; // Left
+      } else if (posChoice < 0.66) {
+         x = layoutWidth - media.width - padding; // Right
+      } else {
+         x = (layoutWidth / 2) - (media.width / 2); // Center
+      }
+      
+      media.x = x;
+      media.y = currentImgY + (Math.random() * 80 - 40); // add slight jitter
+      currentImgY += stepY;
+  });
+
+  // 3. Flow layout into two columns
   let currentY = 100;
-
+  let currentColumn = 1;
+  let cursor = { segmentIndex: 0, graphemeIndex: 0 };
   computedLines = [];
 
   while (true) {
-    let lineX = colPadding;
-    let maxAvailableWidth = layoutWidth - colPadding * 2;
+    if (currentY > columnHeight && currentColumn === 1) {
+       currentColumn = 2; // Flow shifts to column 2
+       currentY = 100; // Reset to top
+    }
+
+    let lineX = currentColumn === 1 ? colPadding : (layoutWidth / 2) + colPadding;
+    let maxAvailableWidth = (layoutWidth / 2) - colPadding * 2;
+
     const cyTop = currentY;
     const cyBottom = currentY + lineHeight;
 
+    // Check collisions
     for (const media of loadedMedia) {
         if (cyBottom > media.y && cyTop < media.y + media.height) {
-            if (media.x < layoutWidth / 2) {
-                // Image is on left
-                const pushRight = media.x + media.width + 20;
-                if (pushRight > lineX) {
+            const mediaLeft = media.x;
+            const mediaRight = media.x + media.width;
+            const colLeft = lineX;
+            const colRight = lineX + maxAvailableWidth;
+
+            // AABB horizontal collision detecting
+            if (mediaRight > colLeft && mediaLeft < colRight) {
+                if (mediaLeft <= colLeft && mediaRight >= colRight) {
+                    // Image completely overwrites this column width
+                    maxAvailableWidth = 0;
+                } else if (mediaLeft > colLeft + (maxAvailableWidth / 2)) {
+                    // Image is on the right side of this specific column
+                    const dist = mediaLeft - colLeft;
+                    if (dist < maxAvailableWidth) maxAvailableWidth = dist - 15;
+                } else {
+                    // Image is on the left side of this column
+                    const pushRight = mediaRight + 15;
                     const diff = pushRight - lineX;
                     lineX = pushRight;
                     maxAvailableWidth -= diff;
-                }
-            } else {
-                // Image is on right
-                const cutoff = media.x - 20;
-                if (cutoff < lineX + maxAvailableWidth) {
-                    maxAvailableWidth = cutoff - lineX;
                 }
             }
         }
     }
     
-    if (maxAvailableWidth < 100) maxAvailableWidth = 100;
+    // Skip tightly obstructed rows entirely so words don't squash into 1 letter slices
+    if (maxAvailableWidth < 60) {
+        currentY += lineHeight;
+        continue;
+    }
 
     const layoutLine = layoutNextLine(prepared, cursor, maxAvailableWidth);
-    if (!layoutLine) break;
+    if (!layoutLine) break; // Finished parsing text!
 
     const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
 
@@ -198,6 +210,7 @@ function calculateLayout() {
     currentY += lineHeight;
   }
 
+  // Adjust canvas size to fit the tallest column (likely column 2, plus overflowing images)
   const lastMediaY = loadedMedia.length > 0 
     ? Math.max(...loadedMedia.map(m => m.y + m.height)) 
     : 0;
@@ -218,77 +231,28 @@ function renderFrame() {
 
   const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
 
-  // Draw media
+  // Draw media in Full Color
   loadedMedia.forEach((media) => {
     ctx.globalAlpha = 0.9;
     ctx.shadowColor = 'rgba(255, 180, 100, 0.4)';
     ctx.shadowBlur = 30;
     
-    // ctx.drawImage implicitly supports HTMLVideoElements, drawing the current frame!
     ctx.drawImage(media.elem, media.x + marginX, media.y, media.width, media.height);
     
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1.0;
   });
 
-  // Draw pre-computed text lines independently
-  ctx.font = '32px "Cormorant Garamond", serif';
-  ctx.fillStyle = '#ffdfa0';
-  ctx.shadowColor = 'rgba(255, 200, 100, 0.6)';
+  // Draw two-column text lines
+  ctx.font = '32px "Josefin Sans", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
   ctx.shadowBlur = 10;
   ctx.textBaseline = 'top';
 
-  computedLines.forEach(line => {
+  console.log("Lines generated:", computedLines.length); computedLines.forEach(line => {
     ctx.fillText(line.text, line.x, line.y);
   });
-
-  // Draw Caustics / Cursor Refraction Trail
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  
-  // Add new particle randomly following the cursor
-  if (mouseX > 0 && mouseY > 0) {
-    // Colors of refraction (magentas, cyans, light yellows)
-    const r = Math.floor(Math.random() * 55) + 200;
-    const g = Math.floor(Math.random() * 55) + 200;
-    const b = Math.floor(Math.random() * 100) + 155;
-    
-    trail.push({
-      x: mouseX,
-      y: mouseY,
-      life: 1.0,
-      maxLife: 1.0,
-      radius: Math.random() * 30 + 40,
-      color: `${r}, ${g}, ${b}`
-    });
-  }
-
-  // Draw particles and decay them
-  for (let i = trail.length - 1; i >= 0; i--) {
-    let p = trail[i];
-    p.life -= 0.02; // fade out speed
-
-    if (p.life <= 0) {
-      trail.splice(i, 1);
-      continue;
-    }
-
-    const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
-    const alpha = p.life * 0.15; // very subtle max opacity
-    gradient.addColorStop(0, `rgba(${p.color}, ${alpha})`);
-    gradient.addColorStop(1, `rgba(${p.color}, 0)`);
-
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Drift like floating light
-    p.y -= 0.5;
-    p.x += (Math.random() - 0.5) * 1.5;
-  }
-  
-  ctx.restore();
 
   // Loop
   requestAnimationFrame(renderFrame);
@@ -307,7 +271,7 @@ window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
         screenWidth = window.innerWidth;
-        layoutWidth = screenWidth > 900 ? 900 : screenWidth;
+        layoutWidth = screenWidth;
         // Only layout shifts are expensive, not rendering.
         calculateLayout();
     }, 100);

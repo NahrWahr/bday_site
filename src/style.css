@@ -5,10 +5,23 @@
 body, html {
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
   width: 100%;
-  background: radial-gradient(circle at 50% 50%, #3a1c3b 0%, #1a0b1f 60%, #0a040b 100%);
+  background-color: transparent;
   color: #fff;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+#bkgnd {
+  position: fixed;
+  top: -40px;
+  bottom: -40px;
+  left: -40px;
+  right: -40px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(30px) brightness(0.6);
+  z-index: -1;
 }
 
 #bday-canvas {
