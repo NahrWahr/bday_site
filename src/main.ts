@@ -112,8 +112,6 @@ Your presence brings so much warmth and light to those around you, much like a c
 
 I hope this special day is exactly as wonderful as you are. Take this time to reflect on all the amazing moments, and look forward to the brilliant future ahead.
 
-Keep shining brightly, keep smiling warmly, and never forget how loved you are!
-
 Yours truly,
 Rahul Paddad`;
 
