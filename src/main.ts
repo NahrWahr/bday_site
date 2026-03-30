@@ -26,7 +26,8 @@ const mediaToLoad = [
   './sallubhai.webp',
   './sallubhai2.webp',
   './supermeme_18h46_12.webp',
-  './supermeme_18h47_27.webp'
+  './supermeme_18h47_27.webp',
+  './henchmen_edit.webp'
 ];
 
 interface PlacedMedia {
