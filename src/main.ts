@@ -114,8 +114,6 @@ I hope this special day is exactly as wonderful as you are. Take this time to re
 
 Keep shining brightly, keep smiling warmly, and never forget how loved you are!
 
-Have a fantastic birthday!
-
 Yours truly,
 Rahul Paddad`;
 
