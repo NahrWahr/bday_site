@@ -6,29 +6,36 @@ const ctx = canvas.getContext('2d')!;
 document.getElementById('bkgnd')!.style.backgroundImage = "url('./bk_gnd.webp')";
 
 const mediaToLoad = [
-  './11d1e9dc-3305-49bb-90ba-5b6877c00e1e_removalai_preview.webp',
-  './G-YH3_zaYAAt5eC.webp',
-  './G0qzlfeWwAAvOKi.webp',
-  './G8ul1Y4bQAA77Vw.webp',
-  './HEibW_1WQAA2hzF.webp',
-  './IMG_20250131_123257_DRO.webp',
-  './PXL_20240109_115959709-EDIT.webp',
-  './PXL_20241031_130435595.PORTRAIT.webp',
-  './amitabh_confused.webp',
-  './ebbe6014-da48-4518-b9d5-3357c578aa02_removalai_preview.webp',
-  './image.webp',
-  './ou5.webp',
-  './oug1.webp',
-  './out2.webp',
-  './out4.webp',
-  './out6.webp',
-  './out7.webp',
-  './sallubhai.webp',
-  './sallubhai2.webp',
-  './supermeme_18h46_12.webp',
-  './supermeme_18h47_27.webp',
-  './henchmen_edit.webp'
+  './cat_sitting.webp',
+  './faithful_henchmen.webp',
+  './looking_cat.webp',
+  './looking_parul.webp',
+  './mar-apr-bdays.webp',
+  './sallu_bhai1.webp',
+  './sallu_bhai2.webp'
 ];
+
+function getMediaGroup(filename: string): string {
+  const parts = filename.split('_');
+  // If the file follows a "group_item" pattern, use "group" as the grouping key.
+  // This works for both "looking_cat" (prefix) and "cat_looking" (suffix/infix if we are careful).
+  // Actually, for "looking_cat" and "looking_parul", parts[0] is "looking".
+  // For "sallu_bhai1", parts[0] is "sallu".
+  // We'll use the first part as a heuristic for the group.
+  if (parts.length > 1) {
+    return parts[0].replace('./', '');
+  }
+  return 'other';
+}
+
+// Group by primary name part (prefix), and then keep them in alphabetical order
+mediaToLoad.sort((a, b) => {
+  const groupA = getMediaGroup(a);
+  const groupB = getMediaGroup(b);
+  if (groupA < groupB) return -1;
+  if (groupA > groupB) return 1;
+  return a.localeCompare(b);
+});
 
 interface PlacedMedia {
   elem: HTMLImageElement;
@@ -104,14 +111,6 @@ async function loadMedia() {
 const titleText = "Happy Birthday Parula!";
 const bodyText = `Wishing you the most magical, warm, and incredible birthday ever. 
 
-May your day be filled with endless purrs, warm candle light, and all the joy that you absolutely deserve!
-
-Here is to more adventures, more happiness, and definitely more adorable manual cat pictures. 
-
-Your presence brings so much warmth and light to those around you, much like a cozy candle in a dark, quiet room. Your smile and spirit are truly one of a kind.
-
-I hope this special day is exactly as wonderful as you are. Take this time to reflect on all the amazing moments, and look forward to the brilliant future ahead.
-
 Yours truly,
 Rahul Paddad`;
 
@@ -140,29 +139,42 @@ function calculateLayout() {
   const columnHeight = Math.max((estimatedTextHeight / 2) * 1.6, window.innerHeight - 100);
 
   // 2. Position the loaded images freely down the page
-  let currentImgY = 100;
-  let stepY = 220; // Fixed spacing so they tile beautifully downwards
+  let currentYLeft = 180; // Start below the title
+  let currentYRight = 100;
+  let currentYCenter = 100;
 
-  loadedMedia.forEach(media => {
+  let lastSuffix = "";
+  let forcedColumn = -1; // -1: none, 0: left, 1: center, 2: right
+
+  loadedMedia.forEach((media, idx) => {
     const padding = 20;
-    const posChoice = Math.random();
+    const currentSuffix = getMediaGroup(mediaToLoad[idx]);
+
+    // If same suffix, stay in the same column as the previous one
+    if (currentSuffix !== lastSuffix) {
+      forcedColumn = Math.floor(Math.random() * 3);
+    }
+
     let x;
-    // Distribute to Left Edge, Right Edge, or Center Gap
-    if (posChoice < 0.33) {
-      x = padding; // Left
-    } else if (posChoice < 0.66) {
-      x = layoutWidth - media.width - padding; // Right
-    } else {
-      x = (layoutWidth / 2) - (media.width / 2); // Center
+    let y;
+    if (forcedColumn === 0) { // Left
+      x = padding;
+      y = currentYLeft;
+      currentYLeft += media.height + 60; // Extra padding to avoid overlap
+    } else if (forcedColumn === 2) { // Right
+      x = layoutWidth - media.width - padding;
+      y = currentYRight;
+      currentYRight += media.height + 60;
+    } else { // Center
+      x = (layoutWidth / 2) - (media.width / 2);
+      y = currentYCenter;
+      currentYCenter += media.height + 60;
     }
 
     media.x = x;
-    media.y = currentImgY + (Math.random() * 80 - 40); // add slight jitter
-    // Avoid covering the title area if in column 1
-    if (media.x < layoutWidth / 2 && media.y < 180) {
-      media.y += 150;
-    }
-    currentImgY += stepY;
+    media.y = y + (Math.random() * 20 - 10); // slight jitter
+
+    lastSuffix = currentSuffix;
   });
 
   // 3. Flow layout into two columns
