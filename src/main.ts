@@ -59,16 +59,16 @@ let deviceTilt = { x: 0, y: 0 };
 const startTime = Date.now();
 
 window.addEventListener('mousemove', (e) => {
-    mousePos.x = (e.clientX / window.innerWidth) - 0.5;
-    mousePos.y = (e.clientY / window.innerHeight) - 0.5;
+  mousePos.x = (e.clientX / window.innerWidth) - 0.5;
+  mousePos.y = (e.clientY / window.innerHeight) - 0.5;
 });
 
 window.addEventListener('deviceorientation', (e) => {
-    if (e.beta !== null && e.gamma !== null) {
-        // Simple mapping of tilt to a -0.5 to 0.5 range
-        deviceTilt.x = Math.max(-1, Math.min(1, e.gamma / 45)) * 0.5;
-        deviceTilt.y = Math.max(-1, Math.min(1, (e.beta - 45) / 45)) * 0.5;
-    }
+  if (e.beta !== null && e.gamma !== null) {
+    // Simple mapping of tilt to a -0.5 to 0.5 range
+    deviceTilt.x = Math.max(-1, Math.min(1, e.gamma / 45)) * 0.5;
+    deviceTilt.y = Math.max(-1, Math.min(1, (e.beta - 45) / 45)) * 0.5;
+  }
 });
 
 async function loadMedia() {
@@ -82,17 +82,17 @@ async function loadMedia() {
         const height = img.height * scale;
 
         loadedMedia.push({
-            elem: img,
-            x: 0, // Calculated later
-            y: 0, // Calculated later
-            width,
-            height,
-            phase: Math.random() * Math.PI * 2,
-            type: 'image'
+          elem: img,
+          x: 0, // Calculated later
+          y: 0, // Calculated later
+          width,
+          height,
+          phase: Math.random() * Math.PI * 2,
+          type: 'image'
         });
         resolve(null);
       };
-      
+
       img.onerror = () => {
         resolve(null); // gracefully skip broken images
       }
@@ -101,7 +101,7 @@ async function loadMedia() {
   }
 }
 
-const titleText = "Happy Birthday Parul!";
+const titleText = "Happy Birthday Parula!";
 const bodyText = `Wishing you the most magical, warm, and incredible birthday ever. 
 
 May your day be filled with endless purrs, warm candle light, and all the joy that you absolutely deserve!
@@ -116,28 +116,28 @@ Keep shining brightly, keep smiling warmly, and never forget how loved you are!
 
 Have a fantastic birthday!
 
-With lots of love,
-Your Friends`;
+,
+Rahul Paddad`;
 
 function calculateLayout() {
   const bodyFont = '24px "Josefin Sans", sans-serif';
-  
+
   const prepared = prepareWithSegments(bodyText, bodyFont, { whiteSpace: 'pre-wrap' });
   const lineHeight = 34;
   const colPadding = 40;
   const titleHeight = 80;
-  
+
   // 1. Simulate finding the raw text height
   let simCursor = { segmentIndex: 0, graphemeIndex: 0 };
   let simLines = 0;
-  let singleColWidth = (layoutWidth / 2) - colPadding - 20; 
+  let singleColWidth = (layoutWidth / 2) - colPadding - 20;
   while (true) {
-     const line = layoutNextLine(prepared, simCursor, singleColWidth);
-     if (!line) break;
-     simCursor = line.end;
-     simLines++;
+    const line = layoutNextLine(prepared, simCursor, singleColWidth);
+    if (!line) break;
+    simCursor = line.end;
+    simLines++;
   }
-  
+
   // Target column height balances the text evenly between two columns, 
   // plus extra buffer for image dodging.
   const estimatedTextHeight = simLines * lineHeight;
@@ -146,27 +146,27 @@ function calculateLayout() {
   // 2. Position the loaded images freely down the page
   let currentImgY = 100;
   let stepY = 220; // Fixed spacing so they tile beautifully downwards
-  
+
   loadedMedia.forEach(media => {
-      const padding = 20;
-      const posChoice = Math.random();
-      let x;
-      // Distribute to Left Edge, Right Edge, or Center Gap
-      if (posChoice < 0.33) {
-         x = padding; // Left
-      } else if (posChoice < 0.66) {
-         x = layoutWidth - media.width - padding; // Right
-      } else {
-         x = (layoutWidth / 2) - (media.width / 2); // Center
-      }
-      
-      media.x = x;
-      media.y = currentImgY + (Math.random() * 80 - 40); // add slight jitter
-      // Avoid covering the title area if in column 1
-      if (media.x < layoutWidth / 2 && media.y < 180) {
-          media.y += 150;
-      }
-      currentImgY += stepY;
+    const padding = 20;
+    const posChoice = Math.random();
+    let x;
+    // Distribute to Left Edge, Right Edge, or Center Gap
+    if (posChoice < 0.33) {
+      x = padding; // Left
+    } else if (posChoice < 0.66) {
+      x = layoutWidth - media.width - padding; // Right
+    } else {
+      x = (layoutWidth / 2) - (media.width / 2); // Center
+    }
+
+    media.x = x;
+    media.y = currentImgY + (Math.random() * 80 - 40); // add slight jitter
+    // Avoid covering the title area if in column 1
+    if (media.x < layoutWidth / 2 && media.y < 180) {
+      media.y += 150;
+    }
+    currentImgY += stepY;
   });
 
   // 3. Flow layout into two columns
@@ -178,17 +178,17 @@ function calculateLayout() {
   // Manual placement of the title
   const marginX0 = Math.max(0, (screenWidth - layoutWidth) / 2);
   computedLines.push({
-      text: titleText,
-      x: colPadding + marginX0,
-      y: currentY,
-      isTitle: true
+    text: titleText,
+    x: colPadding + marginX0,
+    y: currentY,
+    isTitle: true
   });
   currentY += titleHeight;
 
   while (true) {
     if (currentY > columnHeight && currentColumn === 1) {
-       currentColumn = 2; // Flow shifts to column 2
-       currentY = 100; // Reset to top
+      currentColumn = 2; // Flow shifts to column 2
+      currentY = 100; // Reset to top
     }
 
     let lineX = currentColumn === 1 ? colPadding : (layoutWidth / 2) + colPadding;
@@ -199,36 +199,36 @@ function calculateLayout() {
 
     // Check collisions
     for (const media of loadedMedia) {
-        if (cyBottom > media.y && cyTop < media.y + media.height) {
-            const mediaLeft = media.x;
-            const mediaRight = media.x + media.width;
-            const colLeft = lineX;
-            const colRight = lineX + maxAvailableWidth;
+      if (cyBottom > media.y && cyTop < media.y + media.height) {
+        const mediaLeft = media.x;
+        const mediaRight = media.x + media.width;
+        const colLeft = lineX;
+        const colRight = lineX + maxAvailableWidth;
 
-            // AABB horizontal collision detecting
-            if (mediaRight > colLeft && mediaLeft < colRight) {
-                if (mediaLeft <= colLeft && mediaRight >= colRight) {
-                    // Image completely overwrites this column width
-                    maxAvailableWidth = 0;
-                } else if (mediaLeft > colLeft + (maxAvailableWidth / 2)) {
-                    // Image is on the right side of this specific column
-                    const dist = mediaLeft - colLeft;
-                    if (dist < maxAvailableWidth) maxAvailableWidth = dist - 15;
-                } else {
-                    // Image is on the left side of this column
-                    const pushRight = mediaRight + 15;
-                    const diff = pushRight - lineX;
-                    lineX = pushRight;
-                    maxAvailableWidth -= diff;
-                }
-            }
+        // AABB horizontal collision detecting
+        if (mediaRight > colLeft && mediaLeft < colRight) {
+          if (mediaLeft <= colLeft && mediaRight >= colRight) {
+            // Image completely overwrites this column width
+            maxAvailableWidth = 0;
+          } else if (mediaLeft > colLeft + (maxAvailableWidth / 2)) {
+            // Image is on the right side of this specific column
+            const dist = mediaLeft - colLeft;
+            if (dist < maxAvailableWidth) maxAvailableWidth = dist - 15;
+          } else {
+            // Image is on the left side of this column
+            const pushRight = mediaRight + 15;
+            const diff = pushRight - lineX;
+            lineX = pushRight;
+            maxAvailableWidth -= diff;
+          }
         }
+      }
     }
-    
+
     // Skip tightly obstructed rows entirely so words don't squash into 1 letter slices
     if (maxAvailableWidth < 60) {
-        currentY += lineHeight;
-        continue;
+      currentY += lineHeight;
+      continue;
     }
 
     const layoutLine = layoutNextLine(prepared, cursor, maxAvailableWidth);
@@ -247,16 +247,16 @@ function calculateLayout() {
   }
 
   // Adjust canvas size to fit the tallest column (likely column 2, plus overflowing images)
-  const lastMediaY = loadedMedia.length > 0 
-    ? Math.max(...loadedMedia.map(m => m.y + m.height)) 
+  const lastMediaY = loadedMedia.length > 0
+    ? Math.max(...loadedMedia.map(m => m.y + m.height))
     : 0;
-  
+
   finalHeight = Math.max(currentY + 200, lastMediaY + 100, window.innerHeight);
 
   canvas.width = screenWidth * window.devicePixelRatio;
   canvas.height = finalHeight * window.devicePixelRatio;
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  
+
   canvas.style.width = screenWidth + 'px';
   canvas.style.height = finalHeight + 'px';
 }
@@ -269,7 +269,7 @@ function renderFrame() {
 
   // Draw media in Full Color
   const time = (Date.now() - startTime) / 1000;
-  
+
   // Combine mouse and tilt positions (barely noticeable parallax)
   const tiltX = (mousePos.x + deviceTilt.x) * 15;
   const tiltY = (mousePos.y + deviceTilt.y) * 15;
@@ -278,19 +278,19 @@ function renderFrame() {
     ctx.globalAlpha = 0.9;
     ctx.shadowColor = 'rgba(255, 180, 100, 0.4)';
     ctx.shadowBlur = 30;
-    
+
     // Independent floating motion
     const floatY = Math.sin(time + media.phase) * 8;
     const floatX = Math.cos(time * 0.7 + media.phase) * 4;
-    
+
     ctx.drawImage(
-        media.elem, 
-        media.x + marginX + tiltX + floatX, 
-        media.y + tiltY + floatY, 
-        media.width, 
-        media.height
+      media.elem,
+      media.x + marginX + tiltX + floatX,
+      media.y + tiltY + floatY,
+      media.width,
+      media.height
     );
-    
+
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1.0;
   });
@@ -330,11 +330,11 @@ document.fonts.ready.then(async () => {
 
 let resizeTimer: any;
 window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-        screenWidth = window.innerWidth;
-        layoutWidth = screenWidth;
-        // Only layout shifts are expensive, not rendering.
-        calculateLayout();
-    }, 100);
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    screenWidth = window.innerWidth;
+    layoutWidth = screenWidth;
+    // Only layout shifts are expensive, not rendering.
+    calculateLayout();
+  }, 100);
 });
