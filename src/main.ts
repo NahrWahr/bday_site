@@ -5,10 +5,10 @@ const canvas = document.getElementById('bday-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 
 const imagesToLoad = [
-  '/oug1.png',
-  '/HCzZrNqasAAdq_P.jpg',
-  '/HEibW_1WQAA2hzF.jpg',
-  '/out2.png'
+  './oug1.png',
+  './HCzZrNqasAAdq_P.jpg',
+  './HEibW_1WQAA2hzF.jpg',
+  './out2.png'
 ];
 
 interface PlacedImage {
