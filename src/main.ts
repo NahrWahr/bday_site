@@ -116,7 +116,7 @@ Keep shining brightly, keep smiling warmly, and never forget how loved you are!
 
 Have a fantastic birthday!
 
-,
+Yours truly,
 Rahul Paddad`;
 
 function calculateLayout() {
