@@ -1,50 +1,32 @@
 import './style.css'
 import { prepareWithSegments, layoutNextLine } from '@chenglou/pretext'
 
+// --- DOM ---
 const canvas = document.getElementById('bday-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 document.getElementById('bkgnd')!.style.backgroundImage = "url('./bk_gnd.webp')";
 
+// --- Media (mar-apr-bdays intentionally excluded) ---
 const mediaToLoad = [
   './cat_sitting.webp',
   './faithful_henchmen.webp',
   './looking_cat.webp',
   './looking_parul.webp',
-  './mar-apr-bdays.webp',
   './sallu_bhai1.webp',
   './sallu_bhai2.webp'
 ];
 
-function getMediaGroup(filename: string): string {
-  const parts = filename.split('_');
-  // If the file follows a "group_item" pattern, use "group" as the grouping key.
-  // This works for both "looking_cat" (prefix) and "cat_looking" (suffix/infix if we are careful).
-  // Actually, for "looking_cat" and "looking_parul", parts[0] is "looking".
-  // For "sallu_bhai1", parts[0] is "sallu".
-  // We'll use the first part as a heuristic for the group.
-  if (parts.length > 1) {
-    return parts[0].replace('./', '');
-  }
-  return 'other';
-}
-
-// Group by primary name part (prefix), and then keep them in alphabetical order
-mediaToLoad.sort((a, b) => {
-  const groupA = getMediaGroup(a);
-  const groupB = getMediaGroup(b);
-  if (groupA < groupB) return -1;
-  if (groupA > groupB) return 1;
-  return a.localeCompare(b);
-});
-
+// --- Types ---
 interface PlacedMedia {
   elem: HTMLImageElement;
+  src: string;
+  naturalWidth: number;
+  naturalHeight: number;
   x: number;
   y: number;
   width: number;
   height: number;
-  phase: number; // For independent float animation
-  type: 'image';
+  phase: number;
 }
 
 interface ComputedLine {
@@ -55,67 +37,66 @@ interface ComputedLine {
   width: number;
 }
 
+// --- State ---
 let loadedMedia: PlacedMedia[] = [];
 let computedLines: ComputedLine[] = [];
-
 let layoutWidth = window.innerWidth;
 let screenWidth = window.innerWidth;
 let finalHeight = window.innerHeight;
-
 let mousePos = { x: 0, y: 0 };
 let mousePhysPos = { x: 0, y: 0 };
 let deviceTilt = { x: 0, y: 0 };
 const startTime = Date.now();
 
+// Cached fonts for rendering (set during layout)
+let cachedTitleFont = 'bold 52px "Satisfy", cursive';
+let cachedBodyFont = '24px "Josefin Sans", sans-serif';
+
+// --- Input ---
 window.addEventListener('mousemove', (e) => {
   mousePos.x = (e.clientX / window.innerWidth) - 0.5;
   mousePos.y = (e.clientY / window.innerHeight) - 0.5;
   mousePhysPos.x = e.clientX;
-  mousePhysPos.y = e.clientY + window.scrollY; // Account for scrolling if any
+  mousePhysPos.y = e.clientY + window.scrollY;
 });
 
 window.addEventListener('deviceorientation', (e) => {
   if (e.beta !== null && e.gamma !== null) {
-    // Simple mapping of tilt to a -0.5 to 0.5 range
     deviceTilt.x = Math.max(-1, Math.min(1, e.gamma / 45)) * 0.5;
     deviceTilt.y = Math.max(-1, Math.min(1, (e.beta - 45) / 45)) * 0.5;
   }
 });
 
-async function loadMedia() {
-  for (const src of mediaToLoad) {
-    await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const isEnlarged = src.includes('faithful_henchmen') || src.includes('sallu_bhai1') || src.includes('sallu_bhai2');
-        const maxImgWidth = isEnlarged
-          ? Math.min(layoutWidth * 0.55, 520)
-          : Math.min(layoutWidth * 0.4, 350);
-
-        const scale = maxImgWidth / img.width;
-        const width = img.width * scale;
-        const height = img.height * scale;
-
-        loadedMedia.push({
-          elem: img,
-          x: 0, // Calculated later
-          y: 0, // Calculated later
-          width,
-          height,
-          phase: Math.random() * Math.PI * 2,
-          type: 'image'
-        });
-        resolve(null);
-      };
-
-      img.onerror = () => {
-        resolve(null); // gracefully skip broken images
-      }
-      img.src = src;
-    });
-  }
+// --- Helpers ---
+function findMedia(name: string): PlacedMedia | undefined {
+  return loadedMedia.find(m => m.src.includes(name));
 }
 
+function scaleMediaTo(media: PlacedMedia, maxW: number) {
+  const w = Math.min(media.naturalWidth, maxW);
+  media.width = w;
+  media.height = media.naturalHeight * (w / media.naturalWidth);
+}
+
+// --- Parallel media loading ---
+async function loadMedia() {
+  const results = await Promise.all(
+    mediaToLoad.map((src, idx) => new Promise<PlacedMedia | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({
+        elem: img, src,
+        naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
+        x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight,
+        phase: idx * 1.3, // deterministic, no Math.random
+      });
+      img.onerror = () => resolve(null);
+      img.src = src;
+    }))
+  );
+  loadedMedia = results.filter(Boolean) as PlacedMedia[];
+}
+
+// --- Content ---
 const titleText = "Happy Birthday Parula!";
 const bodyText = `Another year spent circling our sun, it might go out one day, but thank god we have you and your candles. 
 
@@ -128,258 +109,301 @@ Can't wait to make you a birthday cake, and add a single piece of clove and then
 Yours truly,
 Rahul Paddad`;
 
+// --- Layout ---
 function calculateLayout() {
-  const bodyFont = '24px "Josefin Sans", sans-serif';
+  const mobile = layoutWidth < 700;
+  const scale = Math.min(layoutWidth / 1400, 1);
 
-  const prepared = prepareWithSegments(bodyText, bodyFont, { whiteSpace: 'pre-wrap' });
-  const lineHeight = 34;
-  const colPadding = 40;
-  const titleHeight = 80;
+  // Responsive font sizes
+  const titleFontSize = mobile
+    ? Math.max(26, Math.round(layoutWidth * 0.07))
+    : Math.max(36, Math.round(52 * scale));
+  const bodyFontSize = mobile
+    ? Math.max(15, Math.round(layoutWidth * 0.045))
+    : Math.max(18, Math.round(24 * scale));
+  const lineHeight = Math.round(bodyFontSize * 1.42);
+  const colPadding = mobile ? 15 : 40;
+  const imgGap = 15;
+  const topMargin = mobile ? 25 : 60;
 
-  // 1. Simulate finding the raw text height
+  cachedTitleFont = `bold ${titleFontSize}px "Satisfy", cursive`;
+  cachedBodyFont = `${bodyFontSize}px "Josefin Sans", sans-serif`;
+
+  // --- 1. Scale images ---
+  const enlargedW = mobile ? Math.min(layoutWidth * 0.42, 280) : Math.min(layoutWidth * 0.32, 450);
+  const regularW = mobile ? Math.min(layoutWidth * 0.38, 200) : Math.min(layoutWidth * 0.22, 280);
+  const catW = mobile ? Math.min(layoutWidth * 0.28, 140) : Math.min(layoutWidth * 0.18, 240);
+
+  const catSitting = findMedia('cat_sitting');
+  const faithful = findMedia('faithful');
+  const lookCat = findMedia('looking_cat');
+  const lookParul = findMedia('looking_parul');
+  const sallu1 = findMedia('sallu_bhai1');
+  const sallu2 = findMedia('sallu_bhai2');
+
+  if (catSitting) scaleMediaTo(catSitting, catW);
+  if (faithful) scaleMediaTo(faithful, enlargedW);
+  if (lookCat) scaleMediaTo(lookCat, regularW);
+  if (lookParul) scaleMediaTo(lookParul, regularW);
+  if (sallu1) scaleMediaTo(sallu1, enlargedW);
+  if (sallu2) scaleMediaTo(sallu2, enlargedW);
+
+  // --- 2. Masthead: title left, cat_sitting right ---
+  ctx.font = cachedTitleFont;
+  const titleWidth = ctx.measureText(titleText).width;
+  const mastheadY = topMargin;
+
+  if (catSitting) {
+    // Place cat immediately to the right of the title text
+    catSitting.x = colPadding + titleWidth + 20;
+    catSitting.y = mastheadY;
+  }
+
+  const mastheadH = catSitting
+    ? Math.max(titleFontSize * 1.4, catSitting.height)
+    : titleFontSize * 1.5;
+  const textStartY = mastheadY + mastheadH + 25;
+
+  // --- 3. Place images deterministically ---
+  if (mobile) {
+    // Single y-tracker prevents overlap; alternate sides for visual variety
+    let imgY = textStartY + lineHeight * 2;
+    const seq: { m: PlacedMedia | undefined; side: 'left' | 'right' }[] = [
+      { m: lookCat, side: 'left' },
+      { m: faithful, side: 'right' },
+      { m: lookParul, side: 'left' },
+      { m: sallu1, side: 'right' },
+      { m: sallu2, side: 'left' },
+    ];
+    for (const { m, side } of seq) {
+      if (!m) continue;
+      m.x = side === 'left' ? colPadding : layoutWidth - m.width - colPadding;
+      m.y = imgY;
+      imgY += m.height + lineHeight * 3;
+    }
+  } else {
+    // Desktop: separate left/right y-trackers
+    let leftY = textStartY + lineHeight * 3;
+    let rightY = textStartY;
+
+    // Right column: faithful, sallu1, sallu2
+    for (const m of [faithful, sallu1, sallu2]) {
+      if (!m) continue;
+      m.x = layoutWidth - m.width - colPadding;
+      m.y = rightY;
+      rightY += m.height + 40;
+    }
+
+    // Left column: looking_cat + looking_parul stacked vertically (next to each other)
+    for (const m of [lookCat, lookParul]) {
+      if (!m) continue;
+      m.x = colPadding;
+      m.y = leftY;
+      leftY += m.height + 20;
+    }
+  }
+
+  // --- 4. Text flow with robust collision detection ---
+  const prepared = prepareWithSegments(bodyText, cachedBodyFont, { whiteSpace: 'pre-wrap' });
+
+  // Simulate for column height estimation
   let simCursor = { segmentIndex: 0, graphemeIndex: 0 };
   let simLines = 0;
-  let singleColWidth = (layoutWidth / 2) - colPadding - 20;
+  const simW = (mobile ? layoutWidth : layoutWidth / 2) - colPadding * 2;
   while (true) {
-    const line = layoutNextLine(prepared, simCursor, singleColWidth);
-    if (!line) break;
-    simCursor = line.end;
+    const l = layoutNextLine(prepared, simCursor, simW);
+    if (!l) break;
+    simCursor = l.end;
     simLines++;
   }
 
-  // Target column height balances the text evenly between two columns, 
-  // plus extra buffer for image dodging.
-  const estimatedTextHeight = simLines * lineHeight;
-  const columnHeight = Math.max((estimatedTextHeight / 2) * 1.6, window.innerHeight - 100);
+  const estTextH = simLines * lineHeight;
+  const columnHeight = mobile
+    ? estTextH + 2000
+    : Math.max((estTextH / 2) * 1.8, window.innerHeight - textStartY);
 
-  // 2. Position the loaded images freely down the page
-  let currentYLeft = 180; // Start below the title
-  let currentYRight = 100;
-  let currentYCenter = 100;
-
-  let lastSuffix = "";
-  let forcedColumn = -1; // -1: none, 0: left, 1: center, 2: right
-
-  loadedMedia.forEach((media, idx) => {
-    const padding = 20;
-    const currentSuffix = getMediaGroup(mediaToLoad[idx]);
-
-    // If same suffix, stay in the same column as the previous one
-    if (currentSuffix !== lastSuffix) {
-      forcedColumn = Math.floor(Math.random() * 3);
-    }
-
-    let x;
-    let y;
-    if (forcedColumn === 0) { // Left
-      x = padding;
-      y = currentYLeft;
-      currentYLeft += media.height + 60; // Extra padding to avoid overlap
-    } else if (forcedColumn === 2) { // Right
-      x = layoutWidth - media.width - padding;
-      y = currentYRight;
-      currentYRight += media.height + 60;
-    } else { // Center
-      x = (layoutWidth / 2) - (media.width / 2);
-      y = currentYCenter;
-      currentYCenter += media.height + 60;
-    }
-
-    media.x = x;
-    media.y = y + (Math.random() * 20 - 10); // slight jitter
-
-    lastSuffix = currentSuffix;
-  });
-
-  // 3. Flow layout into two columns
-  let currentY = 100;
-  let currentColumn = 1;
-  let cursor = { segmentIndex: 0, graphemeIndex: 0 };
   computedLines = [];
+  const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
 
-  // Manual placement of the title
-  const marginX0 = Math.max(0, (screenWidth - layoutWidth) / 2);
-  ctx.font = 'bold 52px "Satisfy", cursive';
-  const titleWidth = ctx.measureText(titleText).width;
+  // Title line
   computedLines.push({
     text: titleText,
-    x: colPadding + marginX0,
-    y: currentY,
+    x: colPadding + marginX,
+    y: mastheadY,
     isTitle: true,
-    width: titleWidth
+    width: titleWidth,
   });
-  currentY += titleHeight;
 
-  while (true) {
-    if (currentY > columnHeight && currentColumn === 1) {
-      currentColumn = 2; // Flow shifts to column 2
-      currentY = 100; // Reset to top
+  let currentY = textStartY;
+  let currentCol = 1;
+  let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+  let iterations = 0;
+
+  while (iterations++ < 2000) {
+    // Column switch (desktop only)
+    if (!mobile && currentY > textStartY + columnHeight && currentCol === 1) {
+      currentCol = 2;
+      currentY = textStartY;
     }
+    if (!mobile && currentCol > 2) break;
 
-    let lineX = currentColumn === 1 ? colPadding : (layoutWidth / 2) + colPadding;
-    let maxAvailableWidth = (layoutWidth / 2) - colPadding * 2;
+    let lineX = mobile ? colPadding : (currentCol === 1 ? colPadding : (layoutWidth / 2) + colPadding);
+    const baseWidth = (mobile ? layoutWidth : layoutWidth / 2) - colPadding * 2;
 
+    // Robust collision: narrow text span from both sides
+    let leftBound = lineX;
+    let rightBound = lineX + baseWidth;
     const cyTop = currentY;
     const cyBottom = currentY + lineHeight;
 
-    // Check collisions
     for (const media of loadedMedia) {
-      if (cyBottom > media.y && cyTop < media.y + media.height) {
-        const mediaLeft = media.x;
-        const mediaRight = media.x + media.width;
-        const colLeft = lineX;
-        const colRight = lineX + maxAvailableWidth;
+      if (cyBottom <= media.y || cyTop >= media.y + media.height) continue;
+      const mL = media.x, mR = media.x + media.width;
+      if (mR <= leftBound || mL >= rightBound) continue;
 
-        // AABB horizontal collision detecting
-        if (mediaRight > colLeft && mediaLeft < colRight) {
-          if (mediaLeft <= colLeft && mediaRight >= colRight) {
-            // Image completely overwrites this column width
-            maxAvailableWidth = 0;
-          } else if (mediaLeft > colLeft + (maxAvailableWidth / 2)) {
-            // Image is on the right side of this specific column
-            const dist = mediaLeft - colLeft;
-            if (dist < maxAvailableWidth) maxAvailableWidth = dist - 15;
-          } else {
-            // Image is on the left side of this column
-            const pushRight = mediaRight + 15;
-            const diff = pushRight - lineX;
-            lineX = pushRight;
-            maxAvailableWidth -= diff;
-          }
+      if (mL <= leftBound && mR >= rightBound) {
+        leftBound = rightBound; // fully blocked
+      } else if (mL <= leftBound) {
+        leftBound = Math.max(leftBound, mR + imgGap);
+      } else if (mR >= rightBound) {
+        rightBound = Math.min(rightBound, mL - imgGap);
+      } else {
+        // Image in middle: use wider side
+        if ((mL - leftBound) >= (rightBound - mR)) {
+          rightBound = mL - imgGap;
+        } else {
+          leftBound = mR + imgGap;
         }
       }
     }
 
-    // Skip tightly obstructed rows entirely so words don't squash into 1 letter slices
-    if (maxAvailableWidth < 60) {
+    lineX = leftBound;
+    const availW = rightBound - leftBound;
+
+    if (availW < 80) {
       currentY += lineHeight;
       continue;
     }
 
-    const layoutLine = layoutNextLine(prepared, cursor, maxAvailableWidth);
-    if (!layoutLine) break; // Finished parsing text!
+    const layoutLine = layoutNextLine(prepared, cursor, availW);
+    if (!layoutLine) break;
 
-    const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
-
-    ctx.font = '24px "Josefin Sans", sans-serif';
-    const textWidth = ctx.measureText(layoutLine.text).width;
+    ctx.font = cachedBodyFont;
+    const tw = ctx.measureText(layoutLine.text).width;
 
     computedLines.push({
       text: layoutLine.text,
       x: lineX + marginX,
       y: currentY,
-      width: textWidth
+      width: tw,
     });
 
     cursor = layoutLine.end;
     currentY += lineHeight;
   }
 
-  // Adjust canvas size to fit the tallest column (likely column 2, plus overflowing images)
+  // --- 5. Canvas sizing ---
   const lastMediaY = loadedMedia.length > 0
     ? Math.max(...loadedMedia.map(m => m.y + m.height))
     : 0;
+  const lastTextY = computedLines.length > 0
+    ? Math.max(...computedLines.map(l => l.y + lineHeight))
+    : 0;
 
-  finalHeight = Math.max(currentY + 200, lastMediaY + 100, window.innerHeight);
+  finalHeight = Math.max(lastTextY + 100, lastMediaY + 100, window.innerHeight);
 
   canvas.width = screenWidth * window.devicePixelRatio;
   canvas.height = finalHeight * window.devicePixelRatio;
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-
   canvas.style.width = screenWidth + 'px';
   canvas.style.height = finalHeight + 'px';
 }
 
+// --- Rendering ---
 function renderFrame() {
-  // Clear the canvas on each tick for redraw
   ctx.clearRect(0, 0, screenWidth, finalHeight);
 
   const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
-
-  // Draw media in Full Color
   const time = (Date.now() - startTime) / 1000;
-
-  // Combine mouse and tilt positions (barely noticeable parallax)
   const tiltX = (mousePos.x + deviceTilt.x) * 15;
   const tiltY = (mousePos.y + deviceTilt.y) * 15;
 
+  // Images with rounded corners
+  const cornerRadius = 14;
   loadedMedia.forEach((media) => {
-    ctx.globalAlpha = 0.9;
-    ctx.shadowColor = 'rgba(255, 180, 100, 0.4)';
-    ctx.shadowBlur = 30;
+    const dx = media.x + marginX + tiltX + Math.cos(time * 0.7 + media.phase) * 3;
+    const dy = media.y + tiltY + Math.sin(time + media.phase) * 6;
+    const w = media.width;
+    const h = media.height;
+    const r = Math.min(cornerRadius, w / 2, h / 2);
 
-    // Independent floating motion
-    const floatY = Math.sin(time + media.phase) * 8;
-    const floatX = Math.cos(time * 0.7 + media.phase) * 4;
+    // Pass 1: draw shadow glow (outside clip so shadow renders)
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.shadowColor = 'rgba(255, 180, 100, 0.5)';
+    ctx.shadowBlur = 28;
+    ctx.fillStyle = 'transparent';
+    ctx.beginPath();
+    ctx.roundRect(dx, dy, w, h, r);
+    ctx.fill();
+    ctx.restore();
 
-    ctx.drawImage(
-      media.elem,
-      media.x + marginX + tiltX + floatX,
-      media.y + tiltY + floatY,
-      media.width,
-      media.height
-    );
-
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1.0;
+    // Pass 2: clip and draw image (clean, no bleed)
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath();
+    ctx.roundRect(dx, dy, w, h, r);
+    ctx.clip();
+    ctx.drawImage(media.elem, dx, dy, w, h);
+    ctx.restore();
   });
 
-  // Draw two-column text lines
+  // Text with honey glow
   ctx.textBaseline = 'top';
   computedLines.forEach(line => {
-    // Parallax for text is even more subtle
     const textTiltX = tiltX * 0.3;
     const textTiltY = tiltY * 0.3;
 
-    // Proximity highlighting
-    const textCenterX = line.x + textTiltX + (line.width / 2);
-    const textCenterY = line.y + textTiltY + (line.isTitle ? 20 : 10);
-    const dx = mousePhysPos.x - textCenterX;
-    const dy = mousePhysPos.y - textCenterY;
+    const cx = line.x + textTiltX + (line.width / 2);
+    const cy = line.y + textTiltY + (line.isTitle ? 20 : 10);
+    const dx = mousePhysPos.x - cx;
+    const dy = mousePhysPos.y - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const proximity = Math.max(0, 1 - (dist / 250)); // Glow within 250px
+    const proximity = Math.max(0, 1 - (dist / 250));
 
     if (line.isTitle) {
-      ctx.font = 'bold 52px "Satisfy", cursive';
-      ctx.fillStyle = '#FFD700'; // Gold Color
+      ctx.font = cachedTitleFont;
+      ctx.fillStyle = '#FFD700';
       ctx.shadowBlur = 20 + (proximity * 40);
-      ctx.shadowColor = `rgba(212, 175, 55, ${0.5 + proximity * 0.5})`; // Honey colored glow
+      ctx.shadowColor = `rgba(212, 175, 55, ${0.5 + proximity * 0.5})`;
     } else {
-      ctx.font = '24px "Josefin Sans", sans-serif';
-
-      // Interpolate between off-white and honey gold based on proximity
-      const honeyGold = { r: 212, g: 175, b: 55 };
-      const offWhite = { r: 253, g: 251, b: 240 };
-      const r = Math.round(offWhite.r + (honeyGold.r - offWhite.r) * proximity);
-      const g = Math.round(offWhite.g + (honeyGold.g - offWhite.g) * proximity);
-      const b = Math.round(offWhite.b + (honeyGold.b - offWhite.b) * proximity);
-
+      ctx.font = cachedBodyFont;
+      const r = Math.round(253 + (212 - 253) * proximity);
+      const g = Math.round(251 + (175 - 251) * proximity);
+      const b = Math.round(240 + (55 - 240) * proximity);
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
       ctx.shadowBlur = 5 + (proximity * 25);
-      ctx.shadowColor = `rgba(212, 175, 55, ${proximity * 0.8})`; // Honey glow
+      ctx.shadowColor = `rgba(212, 175, 55, ${proximity * 0.8})`;
     }
     ctx.fillText(line.text, line.x + textTiltX, line.y + textTiltY);
   });
 
-  // Loop
   requestAnimationFrame(renderFrame);
 }
 
-// Ensure fonts are loaded before calculating text widths
+// --- Init ---
 document.fonts.ready.then(async () => {
   await loadMedia();
   calculateLayout();
-  // Start the 60fps loop
   requestAnimationFrame(renderFrame);
 });
 
-let resizeTimer: any;
+let resizeTimer: ReturnType<typeof setTimeout>;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     screenWidth = window.innerWidth;
     layoutWidth = screenWidth;
-    // Only layout shifts are expensive, not rendering.
     calculateLayout();
   }, 100);
 });
