@@ -117,7 +117,7 @@ async function loadMedia() {
 const titleText = "Happy Birthday Parula!";
 const bodyText = `Another year spent circling our sun, it might go out one day, but thank god we have you and your candles. 
 
-I pray you get a lot of beaches and sunsets soon, and I get to accompany you to them, for you have the best lifestyle figured out.
+I pray you get a lot of beaches and sunsets soon, and I get to accompany you to them, for you have the best life figured out.
 
 I also pray you get a long swimming pool in your backyard, and cheer you on as you return to the amphibious ways of our ancestors. (Many consider it was a bad idea to get out in the first place)
 
