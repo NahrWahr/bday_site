@@ -24,9 +24,10 @@ interface PlacedMedia {
   naturalHeight: number;
   x: number;
   y: number;
-  width: number;
-  height: number;
+  width: number;    // layout width (no hover)
+  height: number;   // layout height (no hover)
   phase: number;
+  hoverScale: number; // animated, starts at 1
 }
 
 interface ComputedLine {
@@ -67,6 +68,21 @@ window.addEventListener('deviceorientation', (e) => {
   }
 });
 
+// Touch support: update mousePhysPos on swipe/tap
+window.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  mousePhysPos.x = t.clientX;
+  mousePhysPos.y = t.clientY + window.scrollY;
+}, { passive: true });
+window.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  mousePhysPos.x = t.clientX;
+  mousePhysPos.y = t.clientY + window.scrollY;
+}, { passive: true });
+window.addEventListener('touchend', () => {
+  // gradually return to center (handled in render loop timeout)
+}, { passive: true });
+
 // --- Helpers ---
 function findMedia(name: string): PlacedMedia | undefined {
   return loadedMedia.find(m => m.src.includes(name));
@@ -88,6 +104,7 @@ async function loadMedia() {
         naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
         x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight,
         phase: idx * 1.3, // deterministic, no Math.random
+        hoverScale: 1,
       });
       img.onerror = () => resolve(null);
       img.src = src;
@@ -328,33 +345,71 @@ function renderFrame() {
   const tiltX = (mousePos.x + deviceTilt.x) * 15;
   const tiltY = (mousePos.y + deviceTilt.y) * 15;
 
-  // Images with rounded corners
+  // Images with rounded corners, hover scale, and caustics
   const cornerRadius = 14;
-  loadedMedia.forEach((media) => {
-    const dx = media.x + marginX + tiltX + Math.cos(time * 0.7 + media.phase) * 3;
-    const dy = media.y + tiltY + Math.sin(time + media.phase) * 6;
-    const w = media.width;
-    const h = media.height;
-    const r = Math.min(cornerRadius, w / 2, h / 2);
+  const TARGET_HOVER_SCALE = 1.35;
+  const LERP_SPEED = 0.12;
 
-    // Pass 1: draw shadow glow (outside clip so shadow renders)
+  loadedMedia.forEach((media) => {
+    const baseFloatX = Math.cos(time * 0.7 + media.phase) * 3;
+    const baseFloatY = Math.sin(time + media.phase) * 6;
+    const cx = media.x + marginX + tiltX + baseFloatX + media.width / 2;
+    const cy = media.y + tiltY + baseFloatY + media.height / 2;
+
+    // Hover detection based on physical mouse/touch position
+    const mdx = mousePhysPos.x - cx;
+    const mdy = mousePhysPos.y - cy;
+    const isHovered = Math.abs(mdx) < media.width * 0.6 && Math.abs(mdy) < media.height * 0.6;
+
+    // Lerp hoverScale toward target
+    const targetScale = isHovered ? TARGET_HOVER_SCALE : 1.0;
+    media.hoverScale += (targetScale - media.hoverScale) * LERP_SPEED;
+
+    const s = media.hoverScale;
+    const w = media.width * s;
+    const h = media.height * s;
+    // Draw from center so it expands outward
+    const dx = cx - w / 2;
+    const dy = cy - h / 2;
+    const r = Math.min(cornerRadius * s, w / 2, h / 2);
+
+    // Pass 1: shadow glow (brighter on hover)
     ctx.save();
-    ctx.globalAlpha = 0.92;
-    ctx.shadowColor = 'rgba(255, 180, 100, 0.5)';
-    ctx.shadowBlur = 28;
+    ctx.globalAlpha = isHovered ? 0.95 : 0.92;
+    ctx.shadowColor = isHovered ? 'rgba(150, 220, 255, 0.7)' : 'rgba(255, 180, 100, 0.5)';
+    ctx.shadowBlur = isHovered ? 40 : 28;
     ctx.fillStyle = 'transparent';
     ctx.beginPath();
     ctx.roundRect(dx, dy, w, h, r);
     ctx.fill();
     ctx.restore();
 
-    // Pass 2: clip and draw image (clean, no bleed)
+    // Pass 2: clip and draw image
     ctx.save();
-    ctx.globalAlpha = 0.95;
+    ctx.globalAlpha = 0.97;
     ctx.beginPath();
     ctx.roundRect(dx, dy, w, h, r);
     ctx.clip();
     ctx.drawImage(media.elem, dx, dy, w, h);
+
+    // Pass 3: rainbow glow border on hover
+    if (media.hoverScale > 1.01) {
+      const glowIntensity = (media.hoverScale - 1.0) / (TARGET_HOVER_SCALE - 1.0);
+      const hue = (time * 80) % 360; // slowly cycle through hues
+      const glowWidth = 6 * glowIntensity;
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = glowIntensity * 0.9;
+      ctx.shadowColor = `hsl(${hue}, 100%, 65%)`;
+      ctx.shadowBlur = 22 * glowIntensity;
+      ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`;
+      ctx.lineWidth = glowWidth;
+      ctx.beginPath();
+      ctx.roundRect(dx + glowWidth / 2, dy + glowWidth / 2, w - glowWidth, h - glowWidth, r);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
     ctx.restore();
   });
 
