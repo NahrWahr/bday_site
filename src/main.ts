@@ -52,6 +52,7 @@ interface ComputedLine {
   x: number;
   y: number;
   isTitle?: boolean;
+  width: number;
 }
 
 let loadedMedia: PlacedMedia[] = [];
@@ -62,12 +63,15 @@ let screenWidth = window.innerWidth;
 let finalHeight = window.innerHeight;
 
 let mousePos = { x: 0, y: 0 };
+let mousePhysPos = { x: 0, y: 0 };
 let deviceTilt = { x: 0, y: 0 };
 const startTime = Date.now();
 
 window.addEventListener('mousemove', (e) => {
   mousePos.x = (e.clientX / window.innerWidth) - 0.5;
   mousePos.y = (e.clientY / window.innerHeight) - 0.5;
+  mousePhysPos.x = e.clientX;
+  mousePhysPos.y = e.clientY + window.scrollY; // Account for scrolling if any
 });
 
 window.addEventListener('deviceorientation', (e) => {
@@ -83,7 +87,11 @@ async function loadMedia() {
     await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const maxImgWidth = Math.min(layoutWidth * 0.4, 350);
+        const isEnlarged = src.includes('faithful_henchmen') || src.includes('sallu_bhai1') || src.includes('sallu_bhai2');
+        const maxImgWidth = isEnlarged
+          ? Math.min(layoutWidth * 0.55, 520)
+          : Math.min(layoutWidth * 0.4, 350);
+
         const scale = maxImgWidth / img.width;
         const width = img.width * scale;
         const height = img.height * scale;
@@ -109,7 +117,13 @@ async function loadMedia() {
 }
 
 const titleText = "Happy Birthday Parula!";
-const bodyText = `Wishing you the most magical, warm, and incredible birthday ever. 
+const bodyText = `Another year spent circling our sun, it might go out one day, but thank god we have you and your candles. 
+
+I pray you get a lot of beaches and sunsets soon, and I get to accompany you to them, for you have the best lifestyle figured out.
+
+I also pray you get a long swimming pool in your backyard, and cheer you on as you return to the amphibious ways of our ancestors. (Many consider it was a bad idea to get out in the first place)
+
+Can't wait to make you a birthday cake, and add a single piece of clove and then deny adding it.
 
 Yours truly,
 Rahul Paddad`;
@@ -185,11 +199,14 @@ function calculateLayout() {
 
   // Manual placement of the title
   const marginX0 = Math.max(0, (screenWidth - layoutWidth) / 2);
+  ctx.font = 'bold 52px "Satisfy", cursive';
+  const titleWidth = ctx.measureText(titleText).width;
   computedLines.push({
     text: titleText,
     x: colPadding + marginX0,
     y: currentY,
-    isTitle: true
+    isTitle: true,
+    width: titleWidth
   });
   currentY += titleHeight;
 
@@ -244,10 +261,14 @@ function calculateLayout() {
 
     const marginX = Math.max(0, (screenWidth - layoutWidth) / 2);
 
+    ctx.font = '24px "Josefin Sans", sans-serif';
+    const textWidth = ctx.measureText(layoutLine.text).width;
+
     computedLines.push({
       text: layoutLine.text,
       x: lineX + marginX,
-      y: currentY
+      y: currentY,
+      width: textWidth
     });
 
     cursor = layoutLine.end;
@@ -310,16 +331,32 @@ function renderFrame() {
     const textTiltX = tiltX * 0.3;
     const textTiltY = tiltY * 0.3;
 
+    // Proximity highlighting
+    const textCenterX = line.x + textTiltX + (line.width / 2);
+    const textCenterY = line.y + textTiltY + (line.isTitle ? 20 : 10);
+    const dx = mousePhysPos.x - textCenterX;
+    const dy = mousePhysPos.y - textCenterY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const proximity = Math.max(0, 1 - (dist / 250)); // Glow within 250px
+
     if (line.isTitle) {
       ctx.font = 'bold 52px "Satisfy", cursive';
       ctx.fillStyle = '#FFD700'; // Gold Color
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+      ctx.shadowBlur = 20 + (proximity * 40);
+      ctx.shadowColor = `rgba(212, 175, 55, ${0.5 + proximity * 0.5})`; // Honey colored glow
     } else {
       ctx.font = '24px "Josefin Sans", sans-serif';
-      ctx.fillStyle = '#fdfbf0'; // Off-White/Cream
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+
+      // Interpolate between off-white and honey gold based on proximity
+      const honeyGold = { r: 212, g: 175, b: 55 };
+      const offWhite = { r: 253, g: 251, b: 240 };
+      const r = Math.round(offWhite.r + (honeyGold.r - offWhite.r) * proximity);
+      const g = Math.round(offWhite.g + (honeyGold.g - offWhite.g) * proximity);
+      const b = Math.round(offWhite.b + (honeyGold.b - offWhite.b) * proximity);
+
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.shadowBlur = 5 + (proximity * 25);
+      ctx.shadowColor = `rgba(212, 175, 55, ${proximity * 0.8})`; // Honey glow
     }
     ctx.fillText(line.text, line.x + textTiltX, line.y + textTiltY);
   });
